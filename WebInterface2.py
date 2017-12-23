@@ -69,6 +69,26 @@ def PrepareHistology():
         total=total+1;
     return data,total;
 
+def PrepareTumorSize():
+    sizesData=dataFrame[sheetColumns[7]].values.tolist();
+    locationsData= dataFrame[sheetColumns[3]].values.tolist();
+    gendersData= dataFrame[sheetColumns[5]].values.tolist();
+    histologies= dataFrame[sheetColumns[6]];
+    histologiesData=list();
+    for histology in histologies:
+        histologyLower= histology.lower();
+        if "squamous" in histologyLower:
+            histologiesData.append('Squamous Cell Carcinoma');
+        elif "adenocarcinoma" in histologyLower or "papillary" in histologyLower or "micropapillary" in histologyLower or "mucinous" in histologyLower or "acinar" in histologyLower or "solid"in histologyLower:
+            histologiesData.append('Adenocarcinoma');
+        else:
+            histologiesData.append('Unspecified');
+    del sizesData[3];
+    del locationsData[3];
+    del gendersData[3];
+    del histologiesData[3];
+    return sizesData,locationsData,gendersData,histologiesData;
+
 def PrepareStage():
     primaries= dataFrame[sheetColumns[8]];
     nodes= dataFrame[sheetColumns[9]];
@@ -261,8 +281,9 @@ histologyLayout = layout([histologyTable,[histologyHistogram,histologyPieChart]]
 histologyTab= Panel(child=histologyLayout, title="Histology");
 
 
-tumorSizeRawData=dataFrame[sheetColumns[7]].values.tolist();
-del tumorSizeRawData[3];
+attribute2Select=Select(title="With :", value='General', options=['General','Location','Gender','Histology'],width=275);
+tumorSizeRawData,locationTumorSizeData,genderTumorSizeData,histologyTumorSizeData= PrepareTumorSize();
+
 tumorSizeData = {
     'data1' : ["Mean","Median","Standard Deviation","Variance","Min","Max"],
         'data2'   : [statistics.mean(tumorSizeRawData),statistics.median(tumorSizeRawData),statistics.stdev(tumorSizeRawData),statistics.variance(tumorSizeRawData),min(tumorSizeRawData),max(tumorSizeRawData)],
@@ -274,10 +295,17 @@ tumorSizeColumns = [
         TableColumn(field="data1", title='Stats'),
         TableColumn(field="data2", title='Value'),
     ]
-tumorSizeTable = DataTable(source=tumorSizeSource, columns=tumorSizeColumns,height=250)
+tumorSizeTable = DataTable(source=tumorSizeSource, columns=tumorSizeColumns,height=250,width=650);
 tumorSizePlot=figure(plot_width=700, plot_height=400,title="Tumor Size");
 tumorSizePlot.line(range(len(tumorSizeRawData)),tumorSizeRawData);
-tumorSizeLayout = column(tumorSizeTable,tumorSizePlot);
+tumorSizeLocationPlot=figure(x_range=locationKeys,plot_width=700, plot_height=400,title="Tumor Size vs Location");
+tumorSizeLocationPlot.circle(locationTumorSizeData,tumorSizeRawData,size=10);
+tumorSizeGenderPlot=figure(x_range=genderKeys,plot_width=700, plot_height=400,title="Tumor Size vs Gender");
+tumorSizeGenderPlot.circle(genderTumorSizeData,tumorSizeRawData,size=10);
+tumorSizeHistologyPlot=figure(x_range=histologyKeys,plot_width=700, plot_height=400,title="Tumor Size vs Histology");
+tumorSizeHistologyPlot.circle(histologyTumorSizeData,tumorSizeRawData,size=10);
+space50Wide= Div(text=""" """,width=50);
+tumorSizeLayout = column(row(tumorSizeTable,space50Wide,attribute2Select),tumorSizePlot);
 
 
 primaryRawData,nodeRawData,metRawData= PrepareStage();
@@ -455,7 +483,6 @@ def patientSelectHandler(attr, old, new):
     <div><h2 style='display:inline'>Platform: </h2><p style='display:inline; font-size:18px'>"""+dataFrameNameIndexed.loc[patientSelect.value,sheetColumns[15]]+"""</p></div>""";
 
 def attributeSelectHandler(attr, old, new):
-    'Location','Gender','Histology'
     if(new=='Location'):
         attributeLayout.update(children=[attributeSelect,locationLayout]);
     elif(new=='Gender'):
@@ -466,6 +493,16 @@ def attributeSelectHandler(attr, old, new):
         attributeLayout.update(children=[attributeSelect,tumorSizeLayout]);
     elif(new=='Stage'):
         attributeLayout.update(children=[attributeSelect,stageLayout]);
+
+def attribute2SelectHandler(attr, old, new):
+    if(new=='General'):
+        tumorSizeLayout.update(children=[row(tumorSizeTable,space50Wide,attribute2Select),tumorSizePlot]);
+    if(new=='Location'):
+        tumorSizeLayout.update(children=[row(tumorSizeTable,space50Wide,attribute2Select),tumorSizeLocationPlot]);
+    elif(new=='Gender'):
+        tumorSizeLayout.update(children=[row(tumorSizeTable,space50Wide,attribute2Select),tumorSizeGenderPlot]);
+    elif(new=='Histology'):
+        tumorSizeLayout.update(children=[row(tumorSizeTable,space50Wide,attribute2Select),tumorSizeHistologyPlot]);
         
 def featuresNumberSliderHandler(attr, old, new):
     selector = SelectPercentile(f_classif, percentile=new*100/60607);
@@ -559,7 +596,8 @@ def trainButtonHandler():
     decisionTreeInfo.text=decisionTreeString;
     
 patientSelect.on_change("value", patientSelectHandler);
-attributeSelect.on_change("value", attributeSelectHandler); 
+attributeSelect.on_change("value", attributeSelectHandler);
+attribute2Select.on_change("value", attribute2SelectHandler);
 featuresNumberSlider.on_change("value", featuresNumberSliderHandler);
 probeSelect.on_change("value", probeSelectHandler);
 trainButton.on_click(trainButtonHandler)
